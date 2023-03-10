@@ -1,0 +1,19 @@
+dn: uid=rudaj,dc=example,dc=org
+changetype: add
+objectClass: inetOrgPerson
+description: Joh from Sonatype. Sola is the project
+  manager of the building project, so contact him with any questions.
+cn: Joh Ruda
+sn: Ruda
+uid: rudaj
+userPassword: rudaj
+
+dn: uid=boffakp,dc=example,dc=org
+changetype: add
+objectClass: inetOrgPerson
+description: Pilo from Sonatype. Sola is the project
+  manager of the building project, so contact him with any questions.
+cn: Pilo Boffak
+sn: Boffak
+uid: boffakp
+userPassword: boffakp

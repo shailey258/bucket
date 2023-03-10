@@ -1,0 +1,9 @@
+dn: uid=rudaj,dc=example,dc=org
+changetype: modify
+add: mail
+mail: rudaj@none.com
+
+dn: uid=boffakp,dc=example,dc=org
+changetype: modify
+add: mail
+mail: boffakp@none.com

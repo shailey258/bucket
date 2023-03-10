@@ -1,0 +1,21 @@
+dn: uid=jumos,dc=example,dc=org
+changetype: add
+objectClass: inetOrgPerson
+description: Joh from Sonatype. Sola is the project
+  manager of the building project, so contact him with any questions.
+cn: Jumo
+sn: Sidek
+uid: jumos
+userPassword: jumos
+mail:jumos@none.com
+
+dn: uid=wertya,dc=example,dc=org
+changetype: add
+objectClass: inetOrgPerson
+description: Pilo from Sonatype. Sola is the project
+  manager of the building project, so contact him with any questions.
+cn: Agu
+sn: Werty
+uid: wertya
+userPassword: wertya
+mail: wertya@none.com
