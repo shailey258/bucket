@@ -14,29 +14,6 @@ iqapi = 'api/v2'
 rolesDb = {}
 
 
-def getNexusIqData2(end_point):
-    
-    url = "{}/{}/{}" . format(iqurl, iqapi, end_point)
-    print(url)
-   
-    try:
-        req = requests.get(url, auth=(iquser, iqpwd), verify=False)
-        req.raise_for_status()
-
-        if req.status_code == 200:
-            res = req.json()
-        else:
-            res = "Error fetching data"
-    
-    except requests.exceptions.RequestException as e:  
-        print("Exiting RequestException...")
-        raise
-    except requests.exceptions.HTTPError as e:
-        raise
-        print("Exiting HTTPError...")
-
-    return req.status_code,  req.json()
-
 def getNexusIqData(end_point):
     url = "{}/{}/{}" . format(iqurl, iqapi, end_point)
     # print(url)
@@ -62,7 +39,7 @@ def getRoles():
     return roles
 
 
-def getReport(obj, data):
+def getCsvReport(obj, data):
     output_file = "{}/{}{}".format(outputDir, obj, ".csv")
 
 
@@ -164,11 +141,11 @@ def main():
 
     status_code, organizations = getNexusIqData('organizations')
     print_jsonfile("organizations", organizations)
-    getReport("organization", organizations["organizations"])
+    getCsvReport("organization", organizations["organizations"])
 
     status_code, applications = getNexusIqData('applications')
     print_jsonfile("applications", applications)
-    getReport("application", applications["applications"])
+    getCsvReport("application", applications["applications"])
 
 
 if __name__ == '__main__':
