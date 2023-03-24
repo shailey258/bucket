@@ -90,7 +90,7 @@ def getRoles():
     return roles
 
 
-def makeReport(obj, data):
+def makeMembersReport(obj, data):
     output_file = "{}/{}{}".format(outputDir, obj, ".csv")
 
     with open(output_file, 'w') as fd:
@@ -165,7 +165,7 @@ def getUserFullname(userId):
 def getUsernameLdap(userId):
     # https://gist.github.com/dangtrinhnt/28ef75299618a1b52cf887592220489f
 
-    fullname = userId #return the id if not found in ldap
+    fullname = userId # return the userid if ldap not available or it is not found in ldap
 
     if ldap_result:
         ldap_filter = ldap_user_filter.replace('{username}', userId)
@@ -204,11 +204,11 @@ def main():
 
     status_code, organizations = getNexusIqData('organizations')
     print_jsonfile("organizations", organizations)
-    makeReport("organization", organizations["organizations"])
+    makeMembersReport("organization", organizations["organizations"])
 
     status_code, applications = getNexusIqData('applications')
     print_jsonfile("applications", applications)
-    makeReport("application", applications["applications"])
+    makeMembersReport("application", applications["applications"])
 
 
 if __name__ == '__main__':
