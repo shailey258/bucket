@@ -21,7 +21,7 @@ AD_USER_FILTER = '(&(objectClass=inetOrgPerson)(uid={username}))'
 AD_GROUP_FILTER = '(&(objectClass=groupOfUniqueNames)(ou={group_name}))'
 # https://gist.github.com/dangtrinhnt/28ef75299618a1b52cf887592220489f
 
-def get_args():
+def init():
     
     global iqurl, iquser, iqpwd, makecsv
 
@@ -30,13 +30,15 @@ def get_args():
     parser.add_argument('-s', '--server', default='http://localhost:8070', help='', required=False)
     parser.add_argument('-u', '--user', default='admin', help='', required=False)
     parser.add_argument('-p', '--passwd', default='admin123', required=False)
-    parser.add_argument('--makecsv', action="store_true", required=False) 
+    parser.add_argument('--auth', default='internal', required=False) # or ldap
+    parser.add_argument('--makecsv', action="store_true", required=False)
 
     args = vars(parser.parse_args())
 
     iqurl = args['server']
     iquser = args['user']
     iqpwd = args['passwd']
+    auth = args['auth']
     makecsv = args['makecsv']
    
     return
@@ -175,7 +177,6 @@ def get_group_members(group_name, ad_conn, basedn=AD_USER_BASEDN):
     
     result = ad_conn.search_s(basedn, ldap.SCOPE_SUBTREE, ad_filter)
     if result:
-        print(result)
         if len(result[0]) >= 2 and 'member' in result[0][1]:
             members_tmp = result[0][1]['member']
             for m in members_tmp:
@@ -192,9 +193,9 @@ def get_dn_by_username(username, ad_conn, basedn=AD_USER_BASEDN):
     ad_filter = AD_USER_FILTER.replace('{username}', username)
     results = ad_conn.search_s(basedn, ldap.SCOPE_SUBTREE, ad_filter)
     if results:
-        print(results)
         for dn, others in results:
-            return_dn = dn
+            fullname = others['cn'][0]
+            return_dn = fullname
     else:
         print('No user found')
 
@@ -227,7 +228,7 @@ def print_jsonfile(jsonfile, json_data):
 
 def main():
 
-    get_args()
+    init()
 
     ldap_conn, result = ldap_connect()
     group_name = 'mathematicians'
@@ -237,7 +238,7 @@ def main():
         for m in group_members:
             print(m)
 
-    user_dn = 'euclid'
+    user_dn = 'curie'
     dn = get_dn_by_username(user_dn, ldap_conn)
 
     if os.path.exists(outputDir):
