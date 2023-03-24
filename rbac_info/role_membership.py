@@ -15,39 +15,36 @@ rolesDb = {}
 ldap_host = "ldap://ldap.forumsys.com"
 ldap_user = 'cn=read-only-admin,dc=example,dc=com'
 ldap_pwd = 'password'
-
-AD_USER_BASEDN = "dc=example,dc=com"
-AD_USER_FILTER = '(&(objectClass=inetOrgPerson)(uid={username}))'
-AD_GROUP_FILTER = '(&(objectClass=groupOfUniqueNames)(ou={group_name}))'
-# https://gist.github.com/dangtrinhnt/28ef75299618a1b52cf887592220489f
+ldap_user_basedn = "dc=example,dc=com"
+ldap_user_filter = '(&(objectClass=inetOrgPerson)(uid={username}))'
 
 def init():
-    
-    global iqurl, iquser, iqpwd, makecsv
+
+    global iqurl, iquser, iqpwd, makecsv, ldap_conn, ldap_result, debug
 
     parser = argparse.ArgumentParser(description='Manage your Nexus IQ tokens')
 
     parser.add_argument('-s', '--server', default='http://localhost:8070', help='', required=False)
     parser.add_argument('-u', '--user', default='admin', help='', required=False)
     parser.add_argument('-p', '--passwd', default='admin123', required=False)
-    parser.add_argument('--auth', default='internal', required=False) # or ldap
-    parser.add_argument('--makecsv', action="store_true", required=False)
+    parser.add_argument('-d', '--debug', action="store_true", required=False)
 
     args = vars(parser.parse_args())
 
     iqurl = args['server']
     iquser = args['user']
     iqpwd = args['passwd']
-    auth = args['auth']
-    makecsv = args['makecsv']
-   
+    debug = args['debug']
+
+    ldap_conn, ldap_result = ldap_connect()
+
     return
 
 
 def getNexusIqData(end_point):
     url = "{}/{}/{}" . format(iqurl, iqapi, end_point)
     # print(url)
-   
+
     req = requests.get(url, auth=(iquser, iqpwd), verify=False)
 
     if req.status_code == 200:
@@ -78,7 +75,7 @@ def ldap_connect():
             return "Other LDAP error: " + e.message['desc'], False
          else:
              return "Other LDAP error: " + e, False
-    
+
     return conn, result
 
 
@@ -93,9 +90,8 @@ def getRoles():
     return roles
 
 
-def getCsvReport(obj, data):
+def makeReport(obj, data):
     output_file = "{}/{}{}".format(outputDir, obj, ".csv")
-
 
     with open(output_file, 'w') as fd:
             writer = csv.writer(fd)
@@ -109,49 +105,48 @@ def getCsvReport(obj, data):
 
             for d in data:
                 id = d["id"]
-                name = d["name"]
+                oaname = d["name"]
 
                 # if application
                 # publicId = d["publicId"]
                 # organizationId = d["organizationId"]
 
-                line = []
-                line.append(name)
-
                 endpoint = "{}/{}/{}" . format("roleMemberships", obj, id)
 
                 status_code, rolesdata = getNexusIqData(endpoint)
-                role, ug = getRolesAndUsers(rolesdata["memberMappings"])
 
-                line.append(role)
-                line.append(ug)
-                
-                writer.writerow(line)
+                if debug:
+                    print_jsonfile("organization_" + oaname, rolesdata)
+
+                for role in rolesdata["memberMappings"]:
+                    roleName = rolesDb.get(role["roleId"])
+                    members = getRoleMmebers(role)
+
+                    line = []
+                    line.append(oaname)
+                    line.append(roleName)
+                    line.append(members)
+
+                    writer.writerow(line)
 
     print(output_file)
 
     return
 
 
-def getRolesAndUsers(data):
-    ug = ""
+def getRoleMmebers(data):
+    members = ""
 
-    for d in data:
-        role = rolesDb.get(d["roleId"]) 
+    for m in data["members"]:
+        userOrGroupName = m["userOrGroupName"]
+        userFullname = getUserFullname(userOrGroupName)
+        members += str(userFullname) + ","
 
-        for m in d["members"]:
-            userOrGroupName = m["userOrGroupName"]
-            userFullname = getUsername(userOrGroupName)
+    members = members[:-1]
 
-            # ug += userOrGroupName + ","
-            ug += userFullname + ","
+    return members
 
-    ug = ug[:-1]
-
-    return role, ug
-
-
-def getUsername(userId):
+def getUserFullname(userId):
     fullname = ""
     endpoint = "{}/{}" . format("users", userId)
     status_code, userdata = getNexusIqData(endpoint)
@@ -162,84 +157,42 @@ def getUsername(userId):
         email = userdata['email']
         fullname = "{} {}".format(firstName, lastName)
     else:
-        fullname = getLdapUser(userId)
+        fullname = getUsernameLdap(userId)
 
     return fullname
 
 
-def getLdapUser(userId):
-    return "Ldap User"
+def getUsernameLdap(userId):
+    # https://gist.github.com/dangtrinhnt/28ef75299618a1b52cf887592220489f
 
+    fullname = userId #return the id if not found in ldap
 
-def get_group_members(group_name, ad_conn, basedn=AD_USER_BASEDN):
-    members = []
-    ad_filter = AD_GROUP_FILTER.replace('{group_name}', group_name)
-    
-    result = ad_conn.search_s(basedn, ldap.SCOPE_SUBTREE, ad_filter)
-    if result:
-        if len(result[0]) >= 2 and 'member' in result[0][1]:
-            members_tmp = result[0][1]['member']
-            for m in members_tmp:
-                email = get_email_by_dn(m, ad_conn)
-                if email:
-                    members.append(email)
-    else:
-        print('No members')
+    if ldap_result:
+        ldap_filter = ldap_user_filter.replace('{username}', userId)
+        results = ldap_conn.search_s(ldap_user_basedn, ldap.SCOPE_SUBTREE, ldap_filter)
 
-    return members
+        if results:
+            for dn, others in results:
+                fullname = others['cn'][0].decode()
 
-def get_dn_by_username(username, ad_conn, basedn=AD_USER_BASEDN):
-    return_dn = ''
-    ad_filter = AD_USER_FILTER.replace('{username}', username)
-    results = ad_conn.search_s(basedn, ldap.SCOPE_SUBTREE, ad_filter)
-    if results:
-        for dn, others in results:
-            fullname = others['cn'][0]
-            return_dn = fullname
-    else:
-        print('No user found')
-
-    return return_dn
-
-def get_email_by_dn(dn, ad_conn):
-    email = ''
-    result = ad_conn.search_s(dn, ldap.SCOPE_BASE, \
-		'(&(objectCategory=person)(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))')
-    if result:
-        for dn, attrb in result:
-            if 'mail' in attrb and attrb['mail']:
-                email = attrb['mail'][0].lower()
-                break
-
-    return email
+    return fullname
 
 
 def print_jsonfile(jsonfile, json_data):
-    output_file = "{}/{}{}".format(outputDir, jsonfile, ".json")
-    json_formatted = json.dumps(json_data, indent=2)
+    if debug:
+        output_file = "{}/{}{}".format(outputDir, jsonfile, ".json")
+        json_formatted = json.dumps(json_data, indent=2)
 
-    with open(output_file, 'w') as outfile:
-        json.dump(json_data, outfile, indent=2)
+        with open(output_file, 'w') as outfile:
+            json.dump(json_data, outfile, indent=2)
 
-    print(output_file)
+        print(output_file)
+
     return
 
 
-
 def main():
-
     init()
-
-    ldap_conn, result = ldap_connect()
-    group_name = 'mathematicians'
-    
-    if result:
-        group_members = get_group_members(group_name, ldap_conn)
-        for m in group_members:
-            print(m)
-
-    user_dn = 'curie'
-    dn = get_dn_by_username(user_dn, ldap_conn)
 
     if os.path.exists(outputDir):
         shutil.rmtree(outputDir)
@@ -251,11 +204,11 @@ def main():
 
     status_code, organizations = getNexusIqData('organizations')
     print_jsonfile("organizations", organizations)
-    getCsvReport("organization", organizations["organizations"])
+    makeReport("organization", organizations["organizations"])
 
-    # status_code, applications = getNexusIqData('applications')
-    # print_jsonfile("applications", applications)
-    # getCsvReport("application", applications["applications"])
+    status_code, applications = getNexusIqData('applications')
+    print_jsonfile("applications", applications)
+    makeReport("application", applications["applications"])
 
 
 if __name__ == '__main__':
